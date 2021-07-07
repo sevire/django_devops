@@ -1,0 +1,273 @@
+---
+# This Ansible playbook is an "all things to all men" script which is used to:
+# - Set up a brand new (virtual) Ubuntu server from scratch (see below for details)
+# - Carry out subsets of the tasks for maintenance purposes, including:
+#
+#   - Refresh the git repository to update to latest application code and associated environment.
+#
+#   (linux, networking) General server set up for configuration to come
+#   ===================================================================
+#
+#   - Add apt repository for Ubuntu
+#   - Add IP address of all required hosts to all servers (hosts)
+#
+#   (python) Python set up
+#   ======================
+#
+#   - Install Python packages required to update and support the app
+#   - Install virtualenv_python in advance of setting up all Python packages
+#   - Create virtual environment
+#
+#   (git) Set up the Django application code
+#   ========================================
+#
+#   - Create the local git repository and pull latest remote/master version of the web app
+#   - Delete all .pyc files
+#   - Install appropriate Django settings file depending upon mode (will be live normally)
+#   - Run Django database migrations
+#   - Run Django collectstatic
+#
+#   (gunicorn) Set up Gunicorn application server
+#   =============================================
+#
+#   - Copy gunicorn systemd file over
+#
+#   (nginx) Set up Nginx web server
+#   ===============================
+#
+#   - Copy nginx sites-enabled file over
+#   - Create symbolic link from (Django) sites-available to sites-enabled
+#
+#   (database, gallery) Set up folders and copy files over for database and galleries
+#   =================================================================================
+#
+#   - Create directory for database (independent of Django folder structure)
+#   - Create directory for gallery  (independent of Django folder structure)
+#   - Copy database from fixed location on dev machine to newly created database folder
+#     (NOTE: This should be a copy of whatever is the live database but there is no guaranteed of this)
+#   - Copy gallery folders over from fixed location on dev machine to newly created gallery folder
+#
+#   (firewall) Set up firewall configuration
+#   ========================================
+#
+#   - Open firewall for ssh
+#   - Set Allow Nginx full option on firewall
+#
+#   Handlers to start or restart Gunicorn or Nginx when triggered by other tasks
+#   ============================================================================
+#
+#   - Start or restart gunicorn
+#   - Start or restart nginx
+
+- name: Set up blue-green (live-staging) environments and/or scratch environment
+  hosts: all
+  become: yes
+  become_user: root
+  remote_user: vagrant
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    server_user: root
+    base_python_package: "{{ ansible_python_interpreter }}"
+    virtualenv_python_version: python3.6
+    gunicorn_username: gunicorn
+    floating_ip_address: 138.68.118.155
+    domain_root: manchestermistresslucina.co.uk
+    domain_www: www.manchestermistresslucina.co.uk
+  tasks:
+    #   ===================================================================
+    #   (linux, networking) General server set up for configuration to come
+    #   ===================================================================
+
+    - name: Add apt repository for Ubuntu
+      apt_repository:
+        repo: deb http://archive.ubuntu.com/ubuntu bionic universe
+        state: present
+      tags: linux
+
+    - name: Add IP address of all hosts to all hosts
+      lineinfile:
+        dest: /etc/hosts
+        state: present
+        line: "{{ item }}"
+      with_items:
+        - "{{ ip_address }}"
+        - "{{ floating_ip_address }}"
+        - "{{ domain_root }}"
+        - "{{ domain_www }}"
+      tags: networking
+
+    #   ======================
+    #   (python) Python set up
+    #   ======================
+
+    - name: Install Python packages required to update and support the app
+      apt: name={{ item }} state=present
+      with_items:
+        - python3-pip
+        - git
+        - nginx
+        - sqlite3
+      tags: python
+
+    - name: Install virtualenv_python in advance of setting up all Python packages
+      pip:
+        name: virtualenv
+      tags: python
+
+    - name: Create virtual environment
+      pip: name={{ item }} virtualenv=/home/lda virtualenv_python=python3
+      with_items:
+        - Pillow
+        - markdown
+        - Django
+        - gunicorn
+      tags: python
+
+      #   ========================================
+      #   (git) Set up the Django application code
+      #   ========================================
+
+    - name: Create the local git repository and pull latest remote/master version of the web app.
+      # Once everything's working go back to using parameters for username etc.
+      git: repo=https://github.com/sevire/lda.git
+           version=master
+           dest=/home/lda/lda_app
+           force=yes
+           accept_hostkey=yes
+      notify:
+        - Start nginx service
+        - Start gunicorn service
+      tags: git
+
+    - name: Delete all .pyc files
+      command: find . -name '*.pyc' -delete
+      args:
+        chdir: "/home/lda/lda_app"
+      tags: git
+      changed_when: False
+
+    - name: Change django settings depending upon environment (dev,staging,live)
+      copy:
+        remote_src: yes
+        src: /home/lda/lda_app/lda_webapp/{{ settings_file }}
+        dest: /home/lda/lda_app/lda_webapp/settings.py
+      tags: git
+
+    - name: Run Django database migrations
+      django_manage:
+        command: migrate
+        app_path: "/home/lda/lda_app"
+        virtualenv: "/home/lda"
+      tags:
+        - django.migrate
+        - git
+
+    - name: Run Django collectstatic
+      django_manage:
+        command: collectstatic
+        app_path: "/home/lda/lda_app"
+        virtualenv: "/home/lda"
+      notify:
+        - Start nginx service
+      tags: git
+
+      #   =============================================
+      #   (gunicorn) Set up Gunicorn application server
+      #   =============================================
+
+    - name: Copy gunicorn systemd file over
+      template:
+        src: gunicorn.service.j2
+        dest: /etc/systemd/system/gunicorn.service
+        mode: 0644
+      notify: Start gunicorn service
+      tags: gunicorn
+
+      #   ===============================
+      #   (nginx) Set up Nginx web server
+      #   ===============================
+
+    - name: Copy nginx sites-enabled file over
+      template:
+        src: lda_webapp.j2
+        dest: /etc/nginx/sites-available/lda_webapp
+        mode: 0644
+      tags: nginx
+
+    - name: Create symbolic link
+      file:
+        src: /etc/nginx/sites-available/lda_webapp
+        dest: /etc/nginx/sites-enabled/lda_webapp
+        state: link
+      notify: Start nginx service
+      tags: nginx
+
+      #   =================================================================================
+      #   (database, gallery) Set up folders and copy files over for database and galleries
+      #   =================================================================================
+
+    - name: Create database directory
+      file:
+        path: /home/lda/database
+        state: directory
+      tags: database
+
+    - name: Create gallery directory
+      file:
+        path: /home/lda/galleries
+        state: directory
+      notify:
+        - Start nginx service
+        - Start gunicorn service
+      tags: gallery
+
+#    - name: Copy live database file over from fixed location on dev machine
+#      copy:
+#        src: ~/Projects/static-files/lda-webapp/database(python)/lda-live.sqlite3
+#        dest: /home/lda/database
+#        owner: root
+#        group: root
+#      notify:
+#        - Start nginx service
+#        - Start gunicorn service
+#      tags: database
+#
+    - name: Copy gallery folders over from fixed location on dev machine
+      copy:
+        src: ~/Projects/static-files/lda-webapp/live-galleries
+        dest: /home/lda/galleries/live-galleries
+        owner: root
+        group: root
+      tags: gallery
+
+      #   ========================================
+      #   (firewall) Set up firewall configuration
+      #   ========================================
+
+    - name: open firewall for ssh
+      ufw: rule=allow port=22 proto=tcp
+      tags: firewall
+
+    - name: Allow Nginx Full
+      ufw:
+        rule: allow
+        name: Nginx Full
+        state: enabled
+      tags: firewall
+
+  #   ============================================================================
+  #   Handlers to start or restart Gunicorn or Nginx when triggered by other tasks
+  #   ============================================================================
+
+  handlers:
+    - name: Start gunicorn service
+      systemd:
+        state: restarted
+        name: gunicorn
+
+    - name: Start nginx service
+      systemd:
+        state: restarted
+        name: nginx
+
+...

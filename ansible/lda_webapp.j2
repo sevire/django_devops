@@ -1,0 +1,21 @@
+server {
+    listen 80;
+    server_name {{ ip_address }}
+    server_name {{ floating_ip_address }}
+    {{ domain_root }}
+    {{ domain_www }}
+    ;
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location /static/ {
+        root /home/lda/lda_app/;
+    }
+    location /static/lda/galleries/live-galleries/ {
+        alias /home/lda/galleries/live-galleries/;
+    }
+
+    location / {
+            include proxy_params;
+            proxy_pass http://unix:/home/lda/lda_app/lda_webapp/lda_webapp.sock;
+    }
+}

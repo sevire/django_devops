@@ -1,0 +1,21 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+
+Vagrant.configure("2") do |config|
+  config.vm.define "lda" do |lda|
+    lda.vm.box = "ubuntu/xenial64"
+    lda.vm.network "private_network", ip: "172.28.128.10"
+    lda.vm.hostname = "lda"
+    lda.vm.synced_folder ".", "/vagrant"
+    lda.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+    end
+    lda.vm.provision "ansible" do |ansible|
+      ansible.playbook = "playbook.yml"
+      ansible.inventory_path = "hosts"
+      ansible.host_key_checking = false
+      ansible.verbose = "vv"
+    end
+  end
+end

@@ -1,0 +1,10 @@
+[Unit]
+Description=gunicorn Daemon
+After=network.target
+
+[Service]
+WorkingDirectory=/home/lda/lda_app
+ExecStart=/home/lda/bin/gunicorn --access-logfile - --workers 3 --bind unix:/home/lda/lda_app/lda_webapp/lda_webapp.sock lda_webapp.wsgi:application
+
+[Install]
+WantedBy=multi-user.target
