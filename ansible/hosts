@@ -2,28 +2,28 @@
 ansible_connection=ssh
 ansible_user=root
 
-[lda-blue]
+[lda_blue]
 46.101.31.221
 
-[lda-blue:vars]
+[lda_blue:vars]
 ip_address=46.101.31.221
 
-[lda-green]
+[lda_green]
 46.101.34.68
 
-[lda-green:vars]
+[lda_green:vars]
 ip_address=46.101.34.68
 
-[lda-scratch-test]
+[lda_scratch_test]
 142.93.37.193
 
-[lda-scratch-test:vars]
+[lda_scratch_test:vars]
 ip_address=142.93.37.193
 settings_file=live_settings.py
 
-[blue-green:children]
-lda-blue
-lda-green
+[blue_green:children]
+lda_blue
+lda_green
 
-[blue-green:vars]
+[blue_green:vars]
 settings_file=live_settings.py

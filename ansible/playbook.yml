@@ -59,7 +59,7 @@
 #   - Start or restart gunicorn
 #   - Start or restart nginx
 
-- name: Set up blue-green (live-staging) environments and/or scratch environment
+- name: Set up blue_green (live-staging) environments and/or scratch environment
   hosts: all
   become: yes
   become_user: root
