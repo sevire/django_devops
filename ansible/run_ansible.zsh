@@ -1,0 +1,1 @@
+ansible-playbook playbook.yml -vvvv --check --inventory hosts --tags git --limit lda-blue
