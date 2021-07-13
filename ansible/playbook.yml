@@ -1,5 +1,5 @@
 ---
-# XXX This Ansible playbook is an "all things to all men" script which is used to:
+# YYY This Ansible playbook is an "all things to all men" script which is used to:
 # - Set up a brand new (virtual) Ubuntu server from scratch (see below for details)
 # - Carry out subsets of the tasks for maintenance purposes, including:
 #
@@ -129,11 +129,12 @@
 
     - name: Create the local git repository and pull latest remote/master version of the web app.
       # Once everything's working go back to using parameters for username etc.
-      git: repo=https://github.com/sevire/lda.git
+      git: repo=gxxxit@github.com:sevire/lda.git
            version=master
            dest=/home/lda/lda_app
            force=yes
            accept_hostkey=yes
+      become: no
       notify:
         - Start nginx service
         - Start gunicorn service
