@@ -1,5 +1,5 @@
 ---
-# This Ansible playbook is an "all things to all men" script which is used to:
+# XXX This Ansible playbook is an "all things to all men" script which is used to:
 # - Set up a brand new (virtual) Ubuntu server from scratch (see below for details)
 # - Carry out subsets of the tasks for maintenance purposes, including:
 #
