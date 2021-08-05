@@ -129,7 +129,7 @@
 
     - name: Create the local git repository and pull latest remote/master version of the web app.
       # Once everything's working go back to using parameters for username etc.
-      git: repo=gxxxit@github.com:sevire/lda.git
+      git: repo=git@github.com:sevire/lda.git
            version=master
            dest=/home/lda/lda_app
            force=yes

@@ -1,0 +1,38 @@
+---
+# Test playbook to get git update working via ssh authentication
+
+- name: Test playbook to get git update working via ssh authentication
+  hosts: all
+  become: yes
+  remote_user: parallels
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    server_user: root
+    base_python_package: "{{ ansible_python_interpreter }}"
+    virtualenv_python_version: python3.6
+    gunicorn_username: gunicorn
+  tasks:
+    - name: Install Python packages required to update and support the app
+      apt: name={{ item }} state=present
+      with_items:
+        - python3-pip
+        - git
+      tags: python
+
+      #   ========================================
+      #   (git) Set up the Django application code
+      #   ========================================
+    - name: Create the local git repository and pull latest remote/master version of the web app.
+      # Once everything's working go back to using parameters for username etc.
+      git: repo=git@github.com:sevire/lda.git
+           version=master
+           dest=/home/parallels/lda_app
+           force=yes
+           accept_hostkey=yes
+      become: no
+      notify:
+        - Start nginx service
+        - Start gunicorn service
+      tags: git
+
+...
